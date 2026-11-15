@@ -5,6 +5,13 @@ import dotenv from 'dotenv';
 import { createProxyMiddleware } from 'http-proxy-middleware';
 import swaggerUi from 'swagger-ui-express';
 import { gatewaySwaggerDocument } from './swaggerAggregator.js';
+import {
+  ROLES,
+  PERMISSIONS,
+  PRECONFIGURED_USERS,
+  generateToken,
+  verifyToken
+} from '../../shared/auth.js';
 
 dotenv.config();
 
@@ -23,6 +30,125 @@ app.use(morgan('dev'));
 app.use('/docs', swaggerUi.serve, swaggerUi.setup(gatewaySwaggerDocument, {
   customSiteTitle: 'Unified API Gateway Docs — Group VII'
 }));
+
+// ==========================================
+// Authentication & RBAC Identity Service
+// ==========================================
+app.use('/api/auth', express.json());
+
+// GET /api/auth/personas - List pre-configured demo personas
+app.get('/api/auth/personas', (req, res) => {
+  const safePersonas = PRECONFIGURED_USERS.map(({ password, ...u }) => u);
+  res.json(safePersonas);
+});
+
+// POST /api/auth/login - Authenticate persona or username/password
+app.post('/api/auth/login', (req, res) => {
+  const { username, password, personaId } = req.body;
+
+  let user = null;
+  if (personaId) {
+    user = PRECONFIGURED_USERS.find(u => u.id === personaId);
+  } else if (username) {
+    user = PRECONFIGURED_USERS.find(u => u.username === username);
+    if (user && password && user.password !== password) {
+      return res.status(401).json({ error: 'Invalid credentials', message: 'Incorrect password.' });
+    }
+  }
+
+  if (!user) {
+    return res.status(401).json({
+      error: 'Authentication failed',
+      message: 'User identity not found in National Academic Registry.'
+    });
+  }
+
+  const token = generateToken(user);
+  const { password: _, ...safeUser } = user;
+
+  res.json({
+    message: 'Authentication successful',
+    token,
+    user: safeUser,
+    role: user.role,
+    permissions: PERMISSIONS[user.role] || []
+  });
+});
+
+// GET /api/auth/me - Verify active session and permissions
+app.get('/api/auth/me', (req, res) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.split(' ')[1] : null;
+
+  if (!token) {
+    return res.status(401).json({ error: 'Unauthorized', message: 'No Bearer token provided.' });
+  }
+
+  try {
+    const payload = verifyToken(token);
+    res.json({
+      authenticated: true,
+      user: payload
+    });
+  } catch (err) {
+    res.status(401).json({ error: 'Invalid token', message: err.message });
+  }
+});
+
+// ==========================================
+// RBAC Gatekeeper Middleware for Decisions
+// ==========================================
+// Intercept status transition attempts to enforce that only ROLE_REGISTRAR can decide requests
+app.patch('/api/requests/:id/status', express.json(), (req, res, next) => {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.startsWith('Bearer ') ? authHeader.split(' ')[1] : null;
+
+  if (!token) {
+    return res.status(401).json({
+      error: 'Unauthorized',
+      message: 'Access Denied: Authentication token required to perform administrative decisions.'
+    });
+  }
+
+  try {
+    const user = verifyToken(token);
+    if (user.role !== ROLES.REGISTRAR) {
+      console.warn(`[RBAC Violation] User ${user.username} (${user.role}) attempted to modify request ${req.params.id}`);
+      return res.status(403).json({
+        error: 'Forbidden',
+        message: `RBAC Violation: Role "${user.role}" does not have permission to approve or reject requests. Requires "${ROLES.REGISTRAR}".`,
+        userRole: user.role,
+        requiredRole: ROLES.REGISTRAR
+      });
+    }
+
+    // Set actor name from validated token if not provided
+    if (!req.body.actor) {
+      req.body.actor = user.fullName;
+    }
+
+    // Forward directly to request-service
+    fetch(`${REQUEST_SERVICE_URL}/api/requests/${req.params.id}/status`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-user-id': user.sub,
+        'x-user-role': user.role,
+        'x-user-name': user.fullName
+      },
+      body: JSON.stringify(req.body)
+    })
+      .then(async downstreamRes => {
+        const data = await downstreamRes.json();
+        res.status(downstreamRes.status).json(data);
+      })
+      .catch(err => {
+        res.status(502).json({ error: 'Bad Gateway', message: err.message });
+      });
+  } catch (err) {
+    return res.status(401).json({ error: 'Unauthorized', message: `Invalid token: ${err.message}` });
+  }
+});
 
 // Global System Healthcheck
 app.get('/health', async (req, res) => {
@@ -90,7 +216,11 @@ app.get('/', (req, res) => {
     version: '1.0.0',
     group: 'Group VII',
     theme: 'Administrative document request workflow',
+    security: 'Role-Based Access Control (RBAC) enabled',
     endpoints: {
+      authLogin: '/api/auth/login',
+      authMe: '/api/auth/me',
+      authPersonas: '/api/auth/personas',
       documentation: '/docs',
       systemHealth: '/health',
       studentsApi: '/api/students',
@@ -103,7 +233,7 @@ app.get('/', (req, res) => {
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🌐 [API Gateway] Running on port ${PORT}`);
+  console.log(`🔐 [API Gateway] RBAC security enabled`);
   console.log(`📖 [API Gateway] Unified Swagger Docs: http://localhost:${PORT}/docs`);
   console.log(`🩺 [API Gateway] Health check: http://localhost:${PORT}/health`);
 });
-

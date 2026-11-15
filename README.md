@@ -82,6 +82,44 @@ The application is structured into decoupled, independent microservices followin
 
 ---
 
+## 🔐 Role-Based Access Control (RBAC) & Security Architecture
+
+The platform implements an **OAuth2/JWT-compatible Role-Based Access Control** security model (fulfilling the Keycloak extension requirement):
+
+### Roles & Permissions Hierarchy
+* **`ROLE_STUDENT`:**
+  * Permissions: `requests:create`, `requests:read:own`, `documents:read:own`
+  * Allowed to submit requests and view personal documents.
+  * **Forbidden (HTTP 403)** from approving or rejecting requests.
+* **`ROLE_REGISTRAR` (Academic Registrar / Administration Officer):**
+  * Permissions: `requests:read:all`, `requests:decide`, `documents:read:all`, `students:read:all`
+  * Full administrative authority to approve, reject, and inspect all requests.
+* **`ROLE_AUDITOR` (Ministry Compliance Inspector):**
+  * Permissions: `audit:read`, `requests:read:all`, `notifications:read:all`
+  * Read-only compliance and audit trail inspection.
+
+### Pre-Configured Personas for Demonstrations
+* **Registrar Officer:** `Dr. Karima Benali` (`user-reg-1`)
+* **Student #1:** `Abderrazak Medini` (`user-std-1` / `amedini`)
+* **Student #2:** `Yacine Salles` (`user-std-2` / `ysalles`)
+* **Ministry Auditor:** `Inspector Youssef Cherif` (`user-aud-1` / `auditor`)
+
+---
+
+## 🧪 Automated Test Suites
+
+Run the end-to-end and security test suites directly from your terminal:
+
+```bash
+# 1. Run Full End-to-End SOA Lifecycle Test
+npm test
+
+# 2. Run Dedicated RBAC Security & Privilege Escalation Prevention Test
+npm run test:rbac
+```
+
+---
+
 ## 🚀 One-Command Launch
 
 Everything launches with a single command via Docker Compose:

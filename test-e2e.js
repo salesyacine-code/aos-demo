@@ -72,11 +72,28 @@ async function run() {
     fail(3, 'Failed to submit document request', err);
   }
 
+  // Authenticate as Registrar for administrative actions
+  let registrarToken = null;
+  try {
+    const authRes = await fetch(`${BASE_URL}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ personaId: 'user-reg-1' })
+    });
+    const authData = await authRes.json();
+    registrarToken = authData.token;
+  } catch (err) {
+    console.warn('Could not authenticate registrar for e2e suite');
+  }
+
   // Step 4: Admin Approves Request
   try {
     const res = await fetch(`${BASE_URL}/api/requests/${createdRequest.id}/status`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': registrarToken ? `Bearer ${registrarToken}` : ''
+      },
       body: JSON.stringify({
         status: 'APPROVED',
         comment: 'Automated test suite approval',
@@ -150,7 +167,10 @@ async function run() {
 
     const patchRes = await fetch(`${BASE_URL}/api/requests/${rejReq.id}/status`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': registrarToken ? `Bearer ${registrarToken}` : ''
+      },
       body: JSON.stringify({
         status: 'REJECTED',
         rejectionReason: 'Test rejection scenario criteria',

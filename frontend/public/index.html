@@ -27,12 +27,17 @@
       <!-- Quick External Links & Persona Switcher -->
       <div class="flex items-center space-x-3 text-xs">
         <!-- RBAC Persona Switcher -->
-        <div class="flex items-center bg-blue-950/90 rounded-lg p-1 border border-blue-700/60">
-          <span class="text-slate-400 px-2 font-medium">Role:</span>
-          <select id="role-select" onchange="onRoleChanged()" class="bg-blue-900 text-white font-bold text-xs rounded px-2 py-1 outline-none border-none cursor-pointer">
-            <option value="REGISTRAR">👔 Registrar Officer (Admin)</option>
-            <option value="STUDENT">🎓 Student</option>
+        <div class="flex items-center bg-blue-950/90 rounded-lg p-1.5 border border-blue-700/60 space-x-2">
+          <span class="text-blue-300 font-medium">Logged in as:</span>
+          <select id="persona-select" onchange="onPersonaChanged()" class="bg-blue-900 text-white font-bold text-xs rounded px-2 py-1 outline-none border-none cursor-pointer">
+            <option value="user-reg-1">👔 Dr. Karima Benali (Registrar Officer)</option>
+            <option value="user-std-1">🎓 Abderrazak Medini (Student #1)</option>
+            <option value="user-std-2">🎓 Yacine Salles (Student #2)</option>
+            <option value="user-aud-1">🧐 Inspector Cherif (Ministry Auditor)</option>
           </select>
+          <span id="role-badge-header" class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
+            ROLE_REGISTRAR
+          </span>
         </div>
 
         <a id="link-swagger" href="http://localhost:8000/docs" target="_blank" class="bg-blue-800 hover:bg-blue-700 px-3 py-1.5 rounded-md flex items-center gap-1.5 transition">
@@ -169,6 +174,15 @@
               <span>🔄</span> Refresh
             </button>
           </div>
+        </div>
+
+        <!-- RBAC Permission Context Banner -->
+        <div id="rbac-admin-banner" class="mb-4 p-3 rounded-lg border text-xs flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <span id="rbac-banner-icon" class="text-base">🛡️</span>
+            <span id="rbac-banner-text">Loading RBAC permissions...</span>
+          </div>
+          <span id="rbac-banner-badge" class="px-2 py-0.5 rounded text-[10px] font-mono font-bold"></span>
         </div>
 
         <!-- Filter Buttons -->

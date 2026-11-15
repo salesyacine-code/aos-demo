@@ -4,12 +4,88 @@ const GATEWAY_URL = window.ENV?.GATEWAY_URL || 'http://localhost:8000';
 let currentStudents = [];
 let allRequests = [];
 let currentFilter = 'ALL';
-let currentUserRole = 'REGISTRAR'; // 'REGISTRAR' | 'STUDENT'
+let currentUser = null;
+let authToken = null;
 
-function onRoleChanged() {
-  currentUserRole = document.getElementById('role-select').value;
-  showToast(`Switched active role to: ${currentUserRole === 'REGISTRAR' ? 'Registrar Officer (Full Admin)' : 'Student Persona (Restricted)'}`, 'info');
+// RBAC Persona Authentication
+async function initAuth(personaId = 'user-reg-1') {
+  try {
+    const res = await fetch(`${GATEWAY_URL}/api/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ personaId })
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    authToken = data.token;
+    currentUser = data.user;
+    currentUser.role = data.role;
+    currentUser.permissions = data.permissions;
+
+    updateRbacUI();
+  } catch (err) {
+    console.error('[Auth] Failed to initialize persona:', err);
+  }
+}
+
+async function onPersonaChanged() {
+  const select = document.getElementById('persona-select');
+  await initAuth(select.value);
+  showToast(`Authenticated as ${currentUser.fullName} (${currentUser.role})`, 'info');
   renderRequestsTable();
+
+  // If student persona, auto-select them in Student Request tab
+  if (currentUser.role === 'ROLE_STUDENT' && currentUser.studentId) {
+    const stdSelect = document.getElementById('student-select');
+    if (stdSelect) {
+      stdSelect.value = currentUser.studentId;
+      onStudentSelected();
+    }
+  }
+}
+
+function updateRbacUI() {
+  if (!currentUser) return;
+
+  const headerBadge = document.getElementById('role-badge-header');
+  if (headerBadge) {
+    headerBadge.textContent = currentUser.role;
+    if (currentUser.role === 'ROLE_REGISTRAR') {
+      headerBadge.className = 'px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30';
+    } else if (currentUser.role === 'ROLE_STUDENT') {
+      headerBadge.className = 'px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30';
+    } else {
+      headerBadge.className = 'px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-purple-500/20 text-purple-300 border border-purple-500/30';
+    }
+  }
+
+  // Update Admin Dashboard Banner
+  const banner = document.getElementById('rbac-admin-banner');
+  const bannerIcon = document.getElementById('rbac-banner-icon');
+  const bannerText = document.getElementById('rbac-banner-text');
+  const bannerBadge = document.getElementById('rbac-banner-badge');
+
+  if (banner) {
+    if (currentUser.role === 'ROLE_REGISTRAR') {
+      banner.className = 'mb-4 p-3 rounded-lg border text-xs flex items-center justify-between bg-emerald-50 border-emerald-200 text-emerald-900';
+      bannerIcon.textContent = '🛡️';
+      bannerText.innerHTML = `<strong>Full Administrative Authority:</strong> You are authenticated as <em>${currentUser.fullName}</em> with authority to approve or reject document requests.`;
+      bannerBadge.className = 'px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-200 text-emerald-800';
+      bannerBadge.textContent = 'AUTHORITY: DECISION_MAKER';
+    } else if (currentUser.role === 'ROLE_STUDENT') {
+      banner.className = 'mb-4 p-3 rounded-lg border text-xs flex items-center justify-between bg-amber-50 border-amber-200 text-amber-900';
+      bannerIcon.textContent = '🔒';
+      bannerText.innerHTML = `<strong>Read-Only Access:</strong> You are signed in as Student <em>${currentUser.fullName}</em>. Request decision buttons are disabled by the RBAC Policy.`;
+      bannerBadge.className = 'px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-200 text-amber-800';
+      bannerBadge.textContent = 'ROLE_STUDENT: RESTRICTED';
+    } else {
+      banner.className = 'mb-4 p-3 rounded-lg border text-xs flex items-center justify-between bg-purple-50 border-purple-200 text-purple-900';
+      bannerIcon.textContent = '🧐';
+      bannerText.innerHTML = `<strong>Auditor Inspection Mode:</strong> You are reviewing historical requests and notifications in read-only audit mode.`;
+      bannerBadge.className = 'px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-purple-200 text-purple-800';
+      bannerBadge.textContent = 'ROLE_AUDITOR: READ_ONLY';
+    }
+  }
 }
 
 // Visual BPMN-Style 4-Stage Workflow Stepper
@@ -58,6 +134,7 @@ function renderWorkflowStepper(status) {
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
+  initAuth();
   loadStudents();
   loadAllRequests();
   loadGeneratedDocuments();
@@ -306,7 +383,7 @@ function renderRequestsTable() {
       <td class="py-3 px-3 align-top text-slate-400 text-[11px] whitespace-nowrap">${new Date(r.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</td>
       <td class="py-3 px-3 align-top text-right space-x-1.5 whitespace-nowrap">
         ${r.status === 'SUBMITTED' ? `
-          ${currentUserRole === 'REGISTRAR' ? `
+          ${currentUser?.role === 'ROLE_REGISTRAR' ? `
             <button onclick="approveRequest('${r.id}')" class="bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-2.5 py-1 rounded shadow-sm text-[11px] transition">
               ✓ Approve
             </button>
@@ -314,7 +391,9 @@ function renderRequestsTable() {
               ✕ Reject
             </button>
           ` : `
-            <span class="text-slate-400 text-[11px] italic" title="Switch to Registrar role to review requests">🔒 Admin Only</span>
+            <span class="inline-flex items-center gap-1 text-slate-400 text-[11px] italic bg-slate-100 px-2 py-1 rounded border border-slate-200" title="Only Registrar Officers with ROLE_REGISTRAR have permission to approve/reject">
+              <span>🔒</span> Registrar Only
+            </span>
           `}
         ` : r.status === 'APPROVED' ? `
           <a href="${GATEWAY_URL}/api/documents/${r.id}/download" target="_blank" class="text-blue-600 hover:underline font-semibold text-[11px]">
@@ -335,11 +414,26 @@ async function approveRequest(requestId) {
   try {
     const res = await fetch(`${GATEWAY_URL}/api/requests/${requestId}/status`, {
       method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: 'APPROVED', comment, actor: 'Academic Officer' })
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': authToken ? `Bearer ${authToken}` : ''
+      },
+      body: JSON.stringify({
+        status: 'APPROVED',
+        comment,
+        actor: currentUser?.fullName || 'Academic Officer'
+      })
     });
 
-    if (!res.ok) throw new Error((await res.json()).error);
+    const data = await res.json();
+    if (!res.ok) {
+      if (res.status === 403) {
+        showToast(`⛔ RBAC Denied (HTTP 403): ${data.message || 'Forbidden'}`, 'error');
+        return;
+      }
+      throw new Error(data.message || data.error || `HTTP ${res.status}`);
+    }
+
     showToast('Request APPROVED! RabbitMQ event published -> PDF generating -> Email dispatching.', 'success');
     loadAllRequests(false);
     loadGeneratedDocuments(false);
@@ -351,6 +445,36 @@ async function approveRequest(requestId) {
 async function rejectRequest(requestId) {
   const rejectionReason = prompt('Reason for rejection:', 'Missing required prerequisite documentation.');
   if (!rejectionReason) return;
+
+  try {
+    const res = await fetch(`${GATEWAY_URL}/api/requests/${requestId}/status`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': authToken ? `Bearer ${authToken}` : ''
+      },
+      body: JSON.stringify({
+        status: 'REJECTED',
+        rejectionReason,
+        actor: currentUser?.fullName || 'Academic Officer'
+      })
+    });
+
+    const data = await res.json();
+    if (!res.ok) {
+      if (res.status === 403) {
+        showToast(`⛔ RBAC Denied (HTTP 403): ${data.message || 'Forbidden'}`, 'error');
+        return;
+      }
+      throw new Error(data.message || data.error || `HTTP ${res.status}`);
+    }
+
+    showToast('Request REJECTED! Notification email dispatched.', 'error');
+    loadAllRequests(false);
+  } catch (err) {
+    showToast(`Rejection failed: ${err.message}`, 'error');
+  }
+}
 
   try {
     const res = await fetch(`${GATEWAY_URL}/api/requests/${requestId}/status`, {
