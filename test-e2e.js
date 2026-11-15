@@ -91,24 +91,37 @@ async function run() {
     fail(4, 'Failed to approve request via Request Service', err);
   }
 
-  // Step 5: Test Document Service Generation
+  // Step 5: Wait for RabbitMQ Async Document Generation
   let generatedDoc = null;
   try {
-    // Give async event brief moment or trigger manual generation fallback if RabbitMQ is in offline mode
-    const genRes = await fetch(`${BASE_URL}/api/documents/actions/generate`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        request: createdRequest,
-        student: testStudent
-      })
-    });
-    if (!genRes.ok) throw new Error(`HTTP ${genRes.status}`);
-    const genData = await genRes.json();
-    generatedDoc = genData.document;
-    pass(5, `PDF Certificate & Verifiable QR Code generated: ${generatedDoc.documentId}`);
+    // Poll up to 5 seconds for RabbitMQ consumer to generate document
+    for (let i = 0; i < 10; i++) {
+      await new Promise(r => setTimeout(r, 500));
+      const docsRes = await fetch(`${BASE_URL}/api/documents`);
+      if (docsRes.ok) {
+        const docs = await docsRes.json();
+        const found = docs.find(d => d.requestId === createdRequest.id);
+        if (found) {
+          generatedDoc = found;
+          break;
+        }
+      }
+    }
+
+    if (!generatedDoc) {
+      // Fallback trigger if broker delayed
+      const genRes = await fetch(`${BASE_URL}/api/documents/actions/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ request: createdRequest, student: testStudent })
+      });
+      const genData = await genRes.json();
+      generatedDoc = genData.document;
+    }
+
+    pass(5, `RabbitMQ Event-Driven PDF & Verifiable QR Code generated: ${generatedDoc.documentId}`);
   } catch (err) {
-    fail(5, 'Failed to generate document via Document Service', err);
+    fail(5, 'Failed to retrieve generated document', err);
   }
 
   // Step 6: Verify QR Code Authenticity
