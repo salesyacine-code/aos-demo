@@ -1,0 +1,186 @@
+services:
+  # ==========================================
+  # Message Broker: RabbitMQ with Web Console
+  # ==========================================
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: soa-rabbitmq
+    restart: unless-stopped
+    ports:
+      - "5672:5672"     # AMQP protocol
+      - "15672:15672"   # Management Web UI
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - soa-network
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ==========================================
+  # Email Testing Server: Mailpit (SMTP & Web UI)
+  # ==========================================
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: soa-mailpit
+    restart: unless-stopped
+    ports:
+      - "1025:1025"   # SMTP port
+      - "8025:8025"   # Web UI port
+    networks:
+      - soa-network
+
+  # ==========================================
+  # Microservice 1: Student Service
+  # ==========================================
+  student-service:
+    build:
+      context: .
+      dockerfile: services/student-service/Dockerfile
+    container_name: soa-student-service
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+    environment:
+      - PORT=8001
+      - NODE_ENV=production
+    volumes:
+      - student_data:/app/services/student-service/data
+    networks:
+      - soa-network
+
+  # ==========================================
+  # Microservice 2: Request Service
+  # ==========================================
+  request-service:
+    build:
+      context: .
+      dockerfile: services/request-service/Dockerfile
+    container_name: soa-request-service
+    restart: unless-stopped
+    ports:
+      - "8002:8002"
+    environment:
+      - PORT=8002
+      - NODE_ENV=production
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672
+      - STUDENT_SERVICE_URL=http://student-service:8001
+    volumes:
+      - request_data:/app/services/request-service/data
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      student-service:
+        condition: service_started
+    networks:
+      - soa-network
+
+  # ==========================================
+  # Microservice 3: Document Service
+  # ==========================================
+  document-service:
+    build:
+      context: .
+      dockerfile: services/document-service/Dockerfile
+    container_name: soa-document-service
+    restart: unless-stopped
+    ports:
+      - "8003:8003"
+    environment:
+      - PORT=8003
+      - NODE_ENV=production
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672
+      - GATEWAY_PUBLIC_URL=http://localhost:8000
+    volumes:
+      - document_storage:/app/services/document-service/storage
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - soa-network
+
+  # ==========================================
+  # Microservice 4: Notification Service
+  # ==========================================
+  notification-service:
+    build:
+      context: .
+      dockerfile: services/notification-service/Dockerfile
+    container_name: soa-notification-service
+    restart: unless-stopped
+    ports:
+      - "8004:8004"
+    environment:
+      - PORT=8004
+      - NODE_ENV=production
+      - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672
+      - MAILPIT_SMTP_HOST=mailpit
+      - MAILPIT_SMTP_PORT=1025
+      - GATEWAY_PUBLIC_URL=http://localhost:8000
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+    networks:
+      - soa-network
+
+  # ==========================================
+  # API Gateway: Single Entry Point
+  # ==========================================
+  gateway:
+    build:
+      context: .
+      dockerfile: gateway/Dockerfile
+    container_name: soa-api-gateway
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - PORT=8000
+      - NODE_ENV=production
+      - STUDENT_SERVICE_URL=http://student-service:8001
+      - REQUEST_SERVICE_URL=http://request-service:8002
+      - DOCUMENT_SERVICE_URL=http://document-service:8003
+      - NOTIFICATION_SERVICE_URL=http://notification-service:8004
+    depends_on:
+      - student-service
+      - request-service
+      - document-service
+      - notification-service
+    networks:
+      - soa-network
+
+  # ==========================================
+  # Client Web UI: Simple Demonstration App
+  # ==========================================
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    container_name: soa-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - GATEWAY_URL=http://localhost:8000
+    depends_on:
+      - gateway
+    networks:
+      - soa-network
+
+networks:
+  soa-network:
+    driver: bridge
+
+volumes:
+  rabbitmq_data:
+  student_data:
+  request_data:
+  document_storage:

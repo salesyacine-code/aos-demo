@@ -1,0 +1,30 @@
+/* Custom CSS accents for E-Government Academic Portal */
+.glass-panel {
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(8px);
+}
+
+.status-badge-submitted {
+  background-color: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fde68a;
+}
+
+.status-badge-approved {
+  background-color: #dcfce7;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+}
+
+.status-badge-rejected {
+  background-color: #fee2e2;
+  color: #991b1b;
+  border: 1px solid #fecaca;
+}
+
+.tab-active {
+  border-bottom: 3px solid #1e40af;
+  color: #1e40af;
+  font-weight: 600;
+}
+

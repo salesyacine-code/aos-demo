@@ -1,0 +1,120 @@
+{
+  "info": {
+    "_postman_id": "e93240a1-7788-466d-a77e-9080b07b8b40",
+    "name": "SOA Group VII — Document Request Workflow",
+    "description": "Complete Postman collection demonstrating the E-Government administrative document request microservices workflow.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8000", "type": "string" },
+    { "key": "requestId", "value": "", "type": "string" },
+    { "key": "documentId", "value": "", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "1. Gateway Healthcheck",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": { "raw": "{{baseUrl}}/health", "host": ["{{baseUrl}}"], "path": ["health"] }
+      }
+    },
+    {
+      "name": "2. Get Students (DummyJSON)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": { "raw": "{{baseUrl}}/api/students?limit=10", "host": ["{{baseUrl}}"], "path": ["api", "students"], "query": [{ "key": "limit", "value": "10" }] }
+      }
+    },
+    {
+      "name": "3. Get Student Details & Transcript",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": { "raw": "{{baseUrl}}/api/students/1", "host": ["{{baseUrl}}"], "path": ["api", "students", "1"] }
+      }
+    },
+    {
+      "name": "4. Student Submits Document Request",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "var jsonData = pm.response.json();",
+              "if (jsonData.id) { pm.collectionVariables.set('requestId', jsonData.id); }"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"studentId\": \"1\",\n  \"documentType\": \"CERTIFICATE_OF_ENROLLMENT\",\n  \"purpose\": \"Official Embassy Visa Application\"\n}"
+        },
+        "url": { "raw": "{{baseUrl}}/api/requests", "host": ["{{baseUrl}}"], "path": ["api", "requests"] }
+      }
+    },
+    {
+      "name": "5. List Pending Requests",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": { "raw": "{{baseUrl}}/api/requests?status=SUBMITTED", "host": ["{{baseUrl}}"], "path": ["api", "requests"], "query": [{ "key": "status", "value": "SUBMITTED" }] }
+      }
+    },
+    {
+      "name": "6. Admin Approves Request (Triggers Event, PDF & Email)",
+      "request": {
+        "method": "PATCH",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"status\": \"APPROVED\",\n  \"comment\": \"All tuition and enrollment conditions cleared.\",\n  \"actor\": \"Registrar Office\"\n}"
+        },
+        "url": { "raw": "{{baseUrl}}/api/requests/{{requestId}}/status", "host": ["{{baseUrl}}"], "path": ["api", "requests", "{{requestId}}", "status"] }
+      }
+    },
+    {
+      "name": "7. List Generated Documents",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "var jsonData = pm.response.json();",
+              "if (jsonData.length > 0) { pm.collectionVariables.set('documentId', jsonData[0].documentId); }"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": { "raw": "{{baseUrl}}/api/documents", "host": ["{{baseUrl}}"], "path": ["api", "documents"] }
+      }
+    },
+    {
+      "name": "8. Verify Document QR Code Authenticity",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": { "raw": "{{baseUrl}}/api/documents/verify/{{documentId}}", "host": ["{{baseUrl}}"], "path": ["api", "documents", "verify", "{{documentId}}"] }
+      }
+    },
+    {
+      "name": "9. Inspect Dispatched Notifications",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": { "raw": "{{baseUrl}}/api/notifications", "host": ["{{baseUrl}}"], "path": ["api", "notifications"] }
+      }
+    }
+  ]
+}
+

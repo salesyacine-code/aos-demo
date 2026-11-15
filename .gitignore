@@ -1,0 +1,15 @@
+node_modules/
+npm-debug.log
+yarn-error.log
+.DS_Store
+*.log
+.env
+
+# Data files created at runtime
+services/student-service/data/*.json
+!services/student-service/data/.gitkeep
+services/request-service/data/*.json
+!services/request-service/data/.gitkeep
+services/document-service/storage/*.pdf
+!services/document-service/storage/.gitkeep
+

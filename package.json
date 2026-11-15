@@ -1,0 +1,14 @@
+{
+  "name": "aos-demo-root",
+  "version": "1.0.0",
+  "description": "E-Government Academic Services Monorepo — SOA Group VII",
+  "type": "module",
+  "scripts": {
+    "install:all": "npm --prefix services/student-service install && npm --prefix services/request-service install && npm --prefix services/document-service install && npm --prefix services/notification-service install && npm --prefix gateway install && npm --prefix frontend install",
+    "start": "node run-local.js",
+    "test": "node test-e2e.js",
+    "docker:up": "docker compose up --build",
+    "docker:down": "docker compose down"
+  }
+}
+

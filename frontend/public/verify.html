@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Official Document Verification Portal — E-Government</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="/config.js"></script>
+</head>
+<body class="bg-slate-100 text-slate-800 min-h-screen flex flex-col font-sans">
+
+  <!-- Header -->
+  <header class="bg-blue-900 text-white shadow-md">
+    <div class="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
+      <div class="flex items-center space-x-3">
+        <span class="text-3xl">🏛️</span>
+        <div>
+          <h1 class="text-base font-bold tracking-wide">NATIONAL ACADEMIC VERIFICATION PORTAL</h1>
+          <p class="text-xs text-blue-200">Ministry of Higher Education and Scientific Research — SOA Group VII</p>
+        </div>
+      </div>
+      <a href="/" class="text-xs bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded transition">
+        ← Back to Portal
+      </a>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="max-w-2xl mx-auto px-4 py-10 flex-grow w-full">
+    
+    <!-- Verification Card -->
+    <div class="bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden">
+      
+      <!-- Card Top Banner -->
+      <div id="banner-header" class="bg-slate-800 text-white p-6 text-center transition-colors">
+        <div id="status-icon" class="text-5xl mb-2">🔍</div>
+        <h2 id="status-title" class="text-xl font-bold">Verifying Document Authenticity...</h2>
+        <p id="status-subtitle" class="text-xs text-slate-300 mt-1">Querying the National University Records Repository</p>
+      </div>
+
+      <!-- Verification Body -->
+      <div class="p-8">
+        
+        <!-- Loading Spinner -->
+        <div id="loading-state" class="text-center py-8">
+          <div class="inline-block animate-spin rounded-full h-10 w-10 border-4 border-blue-600 border-t-transparent"></div>
+          <p class="text-xs text-slate-500 mt-3">Connecting to Document Verification Microservice...</p>
+        </div>
+
+        <!-- Verified Content Details -->
+        <div id="result-content" class="hidden space-y-6">
+          
+          <!-- Status Pill -->
+          <div class="flex justify-center">
+            <span id="badge-pill" class="px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider">
+              Status
+            </span>
+          </div>
+
+          <!-- Document Attributes Table -->
+          <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 divide-y divide-slate-200 text-xs">
+            <div class="py-2.5 flex justify-between">
+              <span class="text-slate-500">Document Identifier:</span>
+              <span class="font-mono font-bold text-slate-800" id="res-doc-id">DOC-XXXX-YYYY</span>
+            </div>
+            <div class="py-2.5 flex justify-between">
+              <span class="text-slate-500">Document Type:</span>
+              <span class="font-semibold text-slate-800" id="res-doc-type">Certificate of Enrollment</span>
+            </div>
+            <div class="py-2.5 flex justify-between">
+              <span class="text-slate-500">Student Full Name:</span>
+              <span class="font-bold text-blue-900" id="res-student-name">Student Name</span>
+            </div>
+            <div class="py-2.5 flex justify-between">
+              <span class="text-slate-500">Student ID Number:</span>
+              <span class="font-mono text-slate-700" id="res-student-no">STD-2024-0001</span>
+            </div>
+            <div class="py-2.5 flex justify-between">
+              <span class="text-slate-500">Issuing Request Ref:</span>
+              <span class="font-mono text-slate-700" id="res-req-no">REQ-2025-0001</span>
+            </div>
+            <div class="py-2.5 flex justify-between">
+              <span class="text-slate-500">Official Timestamp:</span>
+              <span class="text-slate-700" id="res-timestamp">Timestamp</span>
+            </div>
+          </div>
+
+          <!-- Actions -->
+          <div class="flex flex-col sm:flex-row gap-3 pt-2">
+            <a id="btn-download-pdf" href="#" target="_blank" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold py-2.5 px-4 rounded-lg text-center transition flex items-center justify-center gap-1.5 shadow">
+              <span>📥</span> Download Certified PDF
+            </a>
+            <a id="btn-preview-pdf" href="#" target="_blank" class="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold py-2.5 px-4 rounded-lg text-center transition flex items-center justify-center gap-1.5 border border-slate-300">
+              <span>👁️</span> Preview Document
+            </a>
+          </div>
+
+          <!-- Legal Disclaimer -->
+          <div class="text-[11px] text-slate-400 text-center leading-relaxed">
+            This digital certificate has been issued and cryptographically validated via the Service-Oriented Architecture (Group VII). Authenticity guaranteed.
+          </div>
+        </div>
+
+        <!-- Error State -->
+        <div id="error-state" class="hidden text-center py-6 space-y-4">
+          <p id="error-message" class="text-sm text-red-600 font-medium">The specified document was not found or has been revoked.</p>
+          <div class="pt-2">
+            <input type="text" id="manual-doc-id" placeholder="Enter valid Document ID (e.g. DOC-...)" class="w-full text-xs border border-slate-300 rounded-lg p-2.5 mb-2">
+            <button onclick="verifyManual()" class="w-full bg-slate-800 hover:bg-slate-900 text-white text-xs font-semibold py-2 rounded-lg transition">
+              Verify Another ID
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </main>
+
+  <footer class="bg-slate-200 text-slate-500 text-xs text-center py-4 border-t border-slate-300">
+    E-Government Administrative Document Verification System — Group VII
+  </footer>
+
+  <script>
+    const GATEWAY_URL = window.ENV?.GATEWAY_URL || 'http://localhost:8000';
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const docId = urlParams.get('doc') || urlParams.get('id');
+      if (docId) {
+        verifyDocument(docId);
+      } else {
+        showError('No Document ID provided in verification URL.');
+      }
+    });
+
+    async function verifyDocument(docId) {
+      document.getElementById('loading-state').classList.remove('hidden');
+      document.getElementById('result-content').classList.add('hidden');
+      document.getElementById('error-state').classList.add('hidden');
+
+      try {
+        const res = await fetch(`${GATEWAY_URL}/api/documents/verify/${encodeURIComponent(docId)}`);
+        const data = await res.json();
+
+        document.getElementById('loading-state').classList.add('hidden');
+
+        if (res.ok && data.valid) {
+          showSuccess(data.document);
+        } else {
+          showError(data.message || `Document identifier "${docId}" could not be authenticated.`);
+        }
+      } catch (err) {
+        document.getElementById('loading-state').classList.add('hidden');
+        showError(`Network connection error to Gateway: ${err.message}`);
+      }
+    }
+
+    function showSuccess(doc) {
+      document.getElementById('banner-header').className = 'bg-emerald-700 text-white p-6 text-center transition-colors';
+      document.getElementById('status-icon').textContent = '✅';
+      document.getElementById('status-title').textContent = 'Official Document Verified';
+      document.getElementById('status-subtitle').textContent = 'Authenticity confirmed by Registrar Authority';
+
+      const pill = document.getElementById('badge-pill');
+      pill.textContent = 'Authentic & Valid';
+      pill.className = 'px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-300';
+
+      document.getElementById('res-doc-id').textContent = doc.documentId;
+      document.getElementById('res-doc-type').textContent = doc.documentType.replace(/_/g, ' ');
+      document.getElementById('res-student-name').textContent = doc.studentName;
+      document.getElementById('res-student-no').textContent = doc.studentNumber;
+      document.getElementById('res-req-no').textContent = doc.requestNumber;
+      document.getElementById('res-timestamp').textContent = new Date(doc.generatedAt).toLocaleString();
+
+      document.getElementById('btn-download-pdf').href = `${GATEWAY_URL}/api/documents/${doc.requestId}/download`;
+      document.getElementById('btn-preview-pdf').href = `${GATEWAY_URL}/api/documents/${doc.requestId}/preview`;
+
+      document.getElementById('result-content').classList.remove('hidden');
+    }
+
+    function showError(msg) {
+      document.getElementById('banner-header').className = 'bg-red-800 text-white p-6 text-center transition-colors';
+      document.getElementById('status-icon').textContent = '❌';
+      document.getElementById('status-title').textContent = 'Verification Failed';
+      document.getElementById('status-subtitle').textContent = 'Invalid or Unrecognized Academic Record';
+
+      document.getElementById('error-message').textContent = msg;
+      document.getElementById('error-state').classList.remove('hidden');
+    }
+
+    function verifyManual() {
+      const val = document.getElementById('manual-doc-id').value.trim();
+      if (val) verifyDocument(val);
+    }
+  </script>
+</body>
+</html>
