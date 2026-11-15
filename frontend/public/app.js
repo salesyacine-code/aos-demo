@@ -195,12 +195,32 @@ function switchTab(tabId) {
 // ==========================================
 async function loadStudents() {
   const select = document.getElementById('student-select');
-  try {
-    const res = await fetch(`${GATEWAY_URL}/api/students?limit=30`);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
-    currentStudents = data.data || [];
+  select.innerHTML = '<option value="">Loading students from Student Service...</option>';
 
+  const endpoints = [
+    `${GATEWAY_URL}/api/students?limit=30`,
+    'http://localhost:8000/api/students?limit=30',
+    'http://127.0.0.1:8000/api/students?limit=30',
+    'http://localhost:8001/api/students?limit=30'
+  ];
+
+  let data = null;
+  let lastErr = null;
+
+  for (const url of endpoints) {
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(3000) });
+      if (res.ok) {
+        data = await res.json();
+        break;
+      }
+    } catch (err) {
+      lastErr = err;
+    }
+  }
+
+  if (data && data.data && data.data.length > 0) {
+    currentStudents = data.data;
     select.innerHTML = '<option value="">-- Choose a Student --</option>';
     currentStudents.forEach(s => {
       const opt = document.createElement('option');
@@ -209,12 +229,14 @@ async function loadStudents() {
       select.appendChild(opt);
     });
 
-    if (currentStudents.length > 0) {
+    if (currentUser?.role === 'ROLE_STUDENT' && currentUser.studentId) {
+      select.value = currentUser.studentId;
+    } else {
       select.value = currentStudents[0].id;
-      onStudentSelected();
     }
-  } catch (err) {
-    select.innerHTML = `<option value="">Error loading students (${err.message})</option>`;
+    onStudentSelected();
+  } else {
+    select.innerHTML = `<option value="">Error loading students (${lastErr?.message || 'Check Gateway connection'})</option>`;
   }
 }
 

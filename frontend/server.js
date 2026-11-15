@@ -9,6 +9,14 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const GATEWAY_URL = process.env.GATEWAY_URL || 'http://localhost:8000';
 
+// Disable client caching so UI updates immediately
+app.use((req, res, next) => {
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  next();
+});
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 // Pass runtime environment config to frontend client
